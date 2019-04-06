@@ -161,6 +161,7 @@ new thing
 
   GROUP_SET_MASK: (8 16-bit numbers)
   GROUP_MASK_SWAP
+  GROUP_MASK
   GROUP_BACKGROUND: (color)
   GROUP_USE_COLORS // set foreground and background colors.
 
@@ -179,20 +180,23 @@ nice to have indirect way of loading groups as they are sometimes common
 FASTLED_USING_NAMESPACE;
 #define PARTICLE_NO_ARDUINO_COMPATIBILITY 1
 #include <MQTT.h>
+#include "addresses.h"
+
+
+//**** HARDWARE DEFINES ****
+// SDA			D0
+// SCL			D1
+#define BUTTON_MANUAL	D5
+#define WIFI_MANUAL	D4
+#define FASTLED_PIN D6
 
 
 //**** CONSTANTS ****
 
-
-
-
-//HOSTNAME is the name of the local node for MQTT
-#define HOSTNAME "panel1"
 // KEEP_ALIVE is number of seconds without MQTT message
 #define KEEP_ALIVE 60
 #define TIME unsigned long
 #define NUM_LEDS 256
-#define FASTLED_PIN D6
 #define ledBias 2 /* minimum led value during sine wave */
 
 //select one of the following for LED layouts
@@ -280,6 +284,20 @@ enum ledModes {
     blinkPhased,
     meteorSynched,
     meteorPhased,
+    life01,
+    life02,
+    life03,
+    life04,
+    life05,
+    life06,
+    life07,
+    life08,
+    life09,
+    life10,
+    life11,
+    life12,
+    life13,
+    life15,
     NUM_LED_MODES
 };
 
@@ -321,6 +339,21 @@ String ledModeNames []= {
     "blinkPhased",
     "meteorSynched",
     "meteorPhased",
+    "life01",
+    "life02",
+    "life03",
+    "life04",
+    "life05",
+    "life06",
+    "life07",
+    "life08",
+    "life09",
+    "life10",
+    "life11",
+    "life12",
+    "life13",
+    "life15",
+
 };
 
 enum ledEvent {
@@ -375,16 +408,17 @@ enum groupEvent {
     GROUP_SET_GROUP, //30
     GROUP_SET_ALL,
     GROUP_SET_MEMBERS,
-    GROUP_SET_MASK, //33
+    GROUP_MASK, //33
+    GROUP_SET_MASK, //34
     GROUP_SET_MASK_COLORS,
-    GROUP_MASK_SWAP, //35
+    GROUP_MASK_SWAP, //37
     GROUP_PHASE_DELAY,
 //should be GROUP_PHASE_DELAY_RIGHT
 //should add GROUP_PHASE_DELAY_LEFT
     GROUP_LFORK,
     GROUP_LFORK_ALL,
     GROUP_LKILL,
-    GROUP_LKILL_ALL, //40
+    GROUP_LKILL_ALL, //42
     GROUP_LOOP,
     GROUP_STOP_ALL,
     GROUP_STOP
@@ -565,6 +599,25 @@ uint32_t iot [] = {
    (0b0000000000000000)
 };
 
+uint32_t borderMask [] = {
+   (uint32_t)0b1111111111111111 |
+   (uint32_t)0b1000000000000001 << 16,
+   (uint32_t)0b1000000000000001 |
+   (uint32_t)0b1000000000000001 << 16,
+   (uint32_t)0b1000000000000001 |
+   (uint32_t)0b1000000000000001 << 16,
+   (uint32_t)0b1000000000000001 |
+   (uint32_t)0b1000000000000001 << 16,
+   (uint32_t)0b1000000000000001 |
+   (uint32_t)0b1000000000000001 << 16,
+   (uint32_t)0b1000000000000001 |
+   (uint32_t)0b1000000000000001 << 16,
+   (uint32_t)0b1000000000000001 |
+   (uint32_t)0b1000000000000001 << 16,
+   (uint32_t)0b1000000000000001 |
+   (uint32_t)0b1111111111111111 << 16
+};
+
 uint32_t life_map_01 [] = { // traffic signal period 2
    (uint32_t)0b0000000000000000 |
    (uint32_t)0b0000000000000000 << 16,
@@ -622,137 +675,232 @@ uint32_t life_map_03 [] = { // gliders
    (uint32_t)0b0001000000001000 << 16
 };
 
-uint32_t life_map_04 [] = {
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000
+uint32_t life_map_04 [] = { //heavy weight space ship
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0111100000000000 |
+   (uint32_t)0b1000100000000000 << 16,
+   (uint32_t)0b0000100000000000 |
+   (uint32_t)0b1001000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16
 };
 
-uint32_t life_map_05 [] = {
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000
+uint32_t life_map_05 [] = { // light weight space ships
+   (uint32_t)0b1010000000001001 |
+   (uint32_t)0b0001000000010000 << 16,
+   (uint32_t)0b0001000000010001 |
+   (uint32_t)0b1001000000011110 << 16,
+   (uint32_t)0b0111000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000001110 << 16,
+   (uint32_t)0b0111100000001001 |
+   (uint32_t)0b1000100000001000 << 16,
+   (uint32_t)0b0000100000001000 |
+   (uint32_t)0b1001000000000101 << 16
 };
 
-uint32_t life_map_06 [] = {
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000
+uint32_t life_map_06 [] = { // beacons
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0001100000110000 << 16,
+   (uint32_t)0b0001100000110000 |
+   (uint32_t)0b0000011011000000 << 16,
+   (uint32_t)0b0000011011000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000011011000000 |
+   (uint32_t)0b0000011011000000 << 16,
+   (uint32_t)0b0001100000110000 |
+   (uint32_t)0b0001100000110000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16
 };
 
-uint32_t life_map_07 [] = {
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000
+uint32_t life_map_07 [] = { // pentathalon
+   (uint32_t)0b0000000100000000 |
+   (uint32_t)0b0000000100000000 << 16,
+   (uint32_t)0b0000001110000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000001110000000 << 16,
+   (uint32_t)0b0000000100000000 |
+   (uint32_t)0b0000000100000000 << 16,
+   (uint32_t)0b0000000100000000 |
+   (uint32_t)0b0000000100000000 << 16,
+   (uint32_t)0b0000001110000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000001110000000 << 16,
+   (uint32_t)0b0000000100000000 |
+   (uint32_t)0b0000000100000000 << 16
 };
 
-uint32_t life_map_08 [] = {
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000
+uint32_t life_map_08 [] = { // heavy weight space ship
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000110000000000 << 16,
+   (uint32_t)0b0010000100000000 |
+   (uint32_t)0b0000000010000000 << 16,
+   (uint32_t)0b0010000010000000 |
+   (uint32_t)0b0001111110000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16
 };
 
-uint32_t life_map_09 [] = {
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000
+uint32_t life_map_09 [] = { // oscillator 14
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000011100000 |
+   (uint32_t)0b0000000111100000 << 16,
+   (uint32_t)0b1100001100011110 |
+   (uint32_t)0b1100011001101110 << 16,
+   (uint32_t)0b0000000111100000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000111100000 |
+   (uint32_t)0b1100011001101110 << 16,
+   (uint32_t)0b1100001100011110 |
+   (uint32_t)0b0000000111100000 << 16,
+   (uint32_t)0b0000000011100000 |
+   (uint32_t)0b0000000000000000 << 16
 };
 
-uint32_t life_map_10 [] = {
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000,
-   (uint32_t)0b0000000000000000 <<16 |
-   (uint32_t)0b0000000000000000
+uint32_t life_map_10 [] = { // tumbler
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000001000100000 |
+   (uint32_t)0b0000001101100000 << 16,
+   (uint32_t)0b0000010101010000 |
+   (uint32_t)0b0000011000110000 << 16,
+   (uint32_t)0b0000001001000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16
+};
+
+uint32_t life_map_11 [] = { // unix period 6 oscillator
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000011000000000 << 16,
+   (uint32_t)0b0000011000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000111000000000 << 16,
+   (uint32_t)0b0000110100110000 |
+   (uint32_t)0b0000001100110000 << 16,
+   (uint32_t)0b0000001100000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16
+};
+
+uint32_t life_map_12 [] = { // great on-off
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000011000000000 |
+   (uint32_t)0b0000100100000000 << 16,
+   (uint32_t)0b0000101100000000 |
+   (uint32_t)0b0001101011000000 << 16,
+   (uint32_t)0b0000000110100000 |
+   (uint32_t)0b0000000000100000 << 16,
+   (uint32_t)0b0000000111000000 |
+   (uint32_t)0b0000000100000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16
+};
+
+uint32_t life_map_13 [] = { // birther
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b1100000000000000 << 16,
+   (uint32_t)0b1100000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0001000000000000 << 16,
+   (uint32_t)0b1111100000000000 |
+   (uint32_t)0b0000010000000000 << 16,
+   (uint32_t)0b0001100000000000 |
+   (uint32_t)0b0011000000000000 << 16,
+   (uint32_t)0b0100000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16
+};
+
+uint32_t life_map_14 [] = {
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16
+};
+
+uint32_t life_map_15 [] = {
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b1111001111110000 << 16,
+   (uint32_t)0b0110000011000000 |
+   (uint32_t)0b0110000011000111 << 16,
+   (uint32_t)0b0110000011000000 |
+   (uint32_t)0b1111000011000000 << 16,
+   (uint32_t)0b0000000000000000 |
+   (uint32_t)0b0000000000000000 << 16,
+   (uint32_t)0b0000100000000000 |
+   (uint32_t)0b0000100000000000 << 16,
+   (uint32_t)0b0100100100010101 |
+   (uint32_t)0b1010101010101011 << 16,
+   (uint32_t)0b0100100100011001 |
+   (uint32_t)0b0000000000001001 << 16,
+   (uint32_t)0b0110000110101010 |
+   (uint32_t)0b0001111000010100 << 16
 };
 
 
@@ -1084,6 +1232,7 @@ int pendulumGC [] = {
 
 
 int borderMarquee1GC [] = {
+    GROUP_MASK, (uint32_t) &borderMask,
     GROUP_SET_MEMBERS, 60, 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,
         31,47,63,79,95,111,127,143,159,175,191,207,223,239,
         255,254,253,252,251,250,249,248,247,246,245,244,243,242,241,240,
@@ -1218,7 +1367,7 @@ int leftArrowGC [] = {
 
 
 
-int life1[] = { // period of 2
+int life01GC[] = { // period of 2
     GROUP_SET_MASK, (uint32_t)&life_map_01,
     //GROUP_SET_MEMBERS, 12,
     //                        102,103,104,
@@ -1234,7 +1383,7 @@ int life1[] = { // period of 2
 };
 
 
-int life2[] = { // period of 3
+int life02GC[] = { // period of 3
     GROUP_SET_MASK, (uint32_t)&life_map_02,
     //GROUP_SET_MEMBERS, 48,
     //                        20,21,22, 26,27,28,
@@ -1255,11 +1404,8 @@ int life2[] = { // period of 3
     GROUP_REPEAT_END,
 };
 
-int life3[] = { // glider
+int life03GC[] = { // glider
     GROUP_SET_MASK, (uint32_t)&life_map_03,
-    //GROUP_SET_MEMBERS, 10,
-    //                    19,33,35,50,51,
-    //                      188,189,204,206,220,
     GROUP_ON,
     GROUP_WAIT, 500, // just to see it
     GROUP_REPEAT_FOREVER,
@@ -1268,6 +1414,115 @@ int life3[] = { // glider
     GROUP_REPEAT_END,
 };
 
+int life04GC[] = { // heavy weight space ship
+    GROUP_SET_MASK, (uint32_t)&life_map_04,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life05GC[] = { // light weight space ship
+    GROUP_SET_MASK, (uint32_t)&life_map_05,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life06GC[] = { // beacons
+    GROUP_SET_MASK, (uint32_t)&life_map_06,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life07GC[] = { // pentathalon
+    GROUP_SET_MASK, (uint32_t)&life_map_07,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life08GC[] = { // heavy weight space ship
+    GROUP_SET_MASK, (uint32_t)&life_map_08,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life09GC[] = { // oscillator 14
+    GROUP_SET_MASK, (uint32_t)&life_map_09,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life10GC[] = { // tumbler
+    GROUP_SET_MASK, (uint32_t)&life_map_10,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life11GC[] = { // unix period 6 oscillator
+    GROUP_SET_MASK, (uint32_t)&life_map_11,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life12GC[] = { // great on-off
+    GROUP_SET_MASK, (uint32_t)&life_map_12,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life13GC[] = { // birther
+    GROUP_SET_MASK, (uint32_t)&life_map_13,
+    GROUP_ON,
+    GROUP_WAIT, 500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
+
+int life15GC[] = { // IT-ology
+    GROUP_SET_MASK, (uint32_t)&life_map_15,
+    GROUP_ON,
+    GROUP_WAIT, 1500, // just to see it
+    GROUP_REPEAT_FOREVER,
+        GROUP_WAIT, 300,
+        GROUP_LIFE, // changes membership of group
+    GROUP_REPEAT_END,
+};
 
 
 int demo1GC [] = {
@@ -1375,7 +1630,7 @@ int demo2GC [] = {
 int demo3GC [] = { // accident, but good run of life
     GROUP_STOP_ALL, // just in case something is running
     GROUP_GCOLOR, 1, GREEN,
-    GROUP_GFORK, 1, (int)&life1,
+    GROUP_GFORK, 1, (int)&life01GC,
     GROUP_WAIT, 10000,
 
     GROUP_LOOP
@@ -1388,20 +1643,75 @@ int demo4GC [] = { // more of a life demo
     GROUP_OFF,
 
     GROUP_GCOLOR, 1, GREEN,
-    GROUP_GFORK, 1, (int)&life1, // oscillator period of 2
-    GROUP_WAIT, 10000,
+    GROUP_GFORK, 1, (int)&life01GC, // oscillator period of 2
+    GROUP_WAIT, 5000,
 
-    GROUP_SET_ALL,
+    //GROUP_SET_ALL,
     GROUP_OFF,
     GROUP_GCOLOR, 1, BLUE,
-    GROUP_GFORK, 1, (int)&life2, // oscillator period of 3
+    GROUP_GFORK, 1, (int)&life02GC, // oscillator period of 3
     GROUP_WAIT, 10000,
 
-    GROUP_SET_ALL,
+    //GROUP_SET_ALL,
     GROUP_OFF,
     GROUP_GCOLOR, 1, YELLOW,
-    GROUP_GFORK, 1, (int)&life3, // glider
+    GROUP_GFORK, 1, (int)&life03GC, // glider
     GROUP_WAIT, 10000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, BLUE,
+    GROUP_GFORK, 1, (int)&life04GC, // heavy weight space ship
+    GROUP_WAIT, 15000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, RED,
+    GROUP_GFORK, 1, (int)&life05GC, // light weight space ship
+    GROUP_WAIT, 20000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, WHITE,
+    GROUP_GFORK, 1, (int)&life06GC, // beacons
+    GROUP_WAIT, 5000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, GREEN,
+    GROUP_GFORK, 1, (int)&life07GC, // pentathalon
+    GROUP_WAIT, 15000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, BLUE,
+    GROUP_GFORK, 1, (int)&life08GC, // heavy weight space ship
+    GROUP_WAIT, 8000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, YELLOW,
+    GROUP_GFORK, 1, (int)&life09GC, // oscillator 14
+    GROUP_WAIT, 10000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, WHITE,
+    GROUP_GFORK, 1, (int)&life10GC, // tumbler
+    GROUP_WAIT, 10000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, RED,
+    GROUP_GFORK, 1, (int)&life11GC, // unix period 6 oscillator
+    GROUP_WAIT, 15000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, BLUE,
+    GROUP_GFORK, 1, (int)&life12GC, // great on-off
+    GROUP_WAIT, 5000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, GREEN,
+    GROUP_GFORK, 1, (int)&life13GC, // birther
+    GROUP_WAIT, 23000,
+
+    GROUP_OFF,
+    GROUP_GCOLOR, 1, BLUE,
+    GROUP_GFORK, 1, (int)&life15GC, // IT-ology
+    GROUP_WAIT, 20000,
 
     GROUP_LOOP
 };
@@ -1493,7 +1803,7 @@ struct LedState {
     int ledNumber;              // number of LED being controlled
     int *currentCommandArray;   // pointer to array of commands
     int currentCommandIndex;    // index into current array of commands
-    int (*currentState)( LedState*, ledEvent, TIME);
+    int (*currentState)( LedState*, ledEvent, TIME); // pointer to a function
     uint8_t fadeStepNumber; // color is proportioned 255*(fadeSteps - fadeStepNumber)/fadeSteps
     uint8_t fadeSteps;      // total number of steps in fade
     CRGB fromColor;
@@ -1523,10 +1833,11 @@ struct LedGroupState {
     CRGB color; // color of LEDs
     CRGB pattern [NUM_LEDS]; // array of colors
     int members [NUM_LEDS];    // ordered array of LED numbers in group for marquees
-    CRGB ledStatus [NUM_LEDS];    // array of LED current status for this group
-    uint8_t *groupMask;    // array of the bit masks for LED in this group
+    CRGB ledColor [NUM_LEDS];    // array of LED color for this group
+    bool ledState[NUM_LEDS];    // array of LED on/off state in this group
+    uint32_t *groupMask;    // array of the bit masks for LED in this group
     int numLeds;            // number of LED members in group
-    int (*currentState)( LedGroupState*, groupEvent, TIME);
+    int (*currentState)( LedGroupState*, groupEvent, TIME); // pointer to a function
     TIME startTime; // time upon entering the current state
     unsigned int timeToWait;           // time to remain in the current state
 };
@@ -1557,15 +1868,14 @@ int groupStopSPF ( LedGroupState *group, groupEvent event, TIME currentTime);
 int ledNullSPF ( LedState *state, ledEvent event, TIME currentTime);
 void ledAllStatesSPF( LedState *state, ledEvent event, TIME currentTime); // handles messages for all states
 void groupAllStatesSPF( LedGroupState *group, groupEvent event, TIME currentTime);
-void callback(char* topic, byte* payload, unsigned int length);
+void receiveMqttMessage(char* topic, byte* payload, unsigned int length);
 NSFastLED::CRGB makeColor (uint8_t red, uint8_t green, uint8_t blue);
 
 
 
 // **** MQTT FUNCTIONS ****
 
-byte server[] = { 192,168,4,1 };
-MQTT client(server, 1883, KEEP_ALIVE, callback);
+MQTT mqttClient(mqttServer, 1883, KEEP_ALIVE, receiveMqttMessage);
 
 #define MAX_PAYLOAD_SIZE 100
 // for QoS2 MQTTPUBREL message.
@@ -1575,7 +1885,7 @@ char lastPayload [MAX_PAYLOAD_SIZE+1];
 unsigned long lastPayloadTime; // epoch of last payload
 
 // receive message
-void callback(char* topic, byte* payload, unsigned int length) {
+void receiveMqttMessage(char* topic, byte* payload, unsigned int length) {
     int passedMode;
     int passedBrightness;
     int passedDirection;
@@ -1593,7 +1903,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     Serial.println( "Received message topic:" + topicS + " payload:" + payloadS);
 
-    if (topicS.compareTo( String( HOSTNAME) + String ("/command/mode")) == 0) {
+    if (topicS.compareTo( String( NODE_NAME) + String ("/command/mode")) == 0) {
         // payload expected to be 0..n (mode index)
         passedMode = payloadS.toInt();
         if (passedMode >= 0 && passedMode < NUM_LED_MODES) {
@@ -1602,7 +1912,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         } else {
             Serial.println( "Mode payload was bad: " + payloadS);
         }
-    } else if (topicS.compareTo( String( HOSTNAME) + String ("/command/brightness")) == 0) {
+    } else if (topicS.compareTo( String( NODE_NAME) + String ("/command/brightness")) == 0) {
         // payload expected to be 0..100 (percent)
         passedBrightness = payloadS.toInt();
         if (passedBrightness > 0 && passedBrightness <= 100) {
@@ -1611,7 +1921,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         } else {
             Serial.println( "Brightness payload was bad: " + payloadS);
         }
-    } else if (topicS.compareTo( String( HOSTNAME) + String ("/command/direction")) == 0) {
+    } else if (topicS.compareTo( String( NODE_NAME) + String ("/command/direction")) == 0) {
         // payload expected to be 0..359 (degrees)
         passedDirection = payloadS.toInt();
         if (passedDirection > 0 && passedDirection <= 360) {
@@ -1620,7 +1930,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         } else {
             Serial.println( "Direction payload was bad: " + payloadS);
         }
-    } else if (topicS.compareTo( String( HOSTNAME) + String ("/command/color")) == 0) {
+    } else if (topicS.compareTo( String( NODE_NAME) + String ("/command/color")) == 0) {
         // payload expected to be some sort of HTML color in the form:
         // index into a box of crayons
         // 0xFFFFFF, 0xFFF, names, hue angles, lists, etc., can come later
@@ -1642,7 +1952,7 @@ void publish (String topic, String payload) {
     char payloadBuffer[BUFFER_LEN];
     topic.toCharArray(topicBuffer, BUFFER_LEN);
     payload.toCharArray(payloadBuffer, BUFFER_LEN);
-    client.publish( topicBuffer, payloadBuffer);
+    mqttClient.publish( topicBuffer, payloadBuffer);
     Serial.println(String( "MQTT: ") + String( topicBuffer) + String( ": ") + String( payloadBuffer));
 }
 
@@ -1662,6 +1972,28 @@ void setupAllLedFSMs ()
         for (int i = 0; i < NUM_LEDS; i++)
         {
             int rowNumber = i/SERPENTINE_ROW;
+            //row 0
+            //   0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+            // 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255
+            //row 1
+            //  16  17  18  19  20  21  22  23  24  25  26  27  28  29  30  31
+            // 239 238 237 236 235 234 233 232 231 230 229 228 227 226 225 224
+            //row 2
+            //  32  33  34  35  36  37  38  39  40  41  42  43  44  45  46  47
+            // 208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223
+            //row 3
+            //  48  49  50  51  52  53  54  55  56  57  58  59  60  61  62  63
+            // 207 206 205 204 203 202 201 200 199 198 197 196 195 194 193 192
+            if ( rowNumber%2 == 0) { // even rows are normal
+                ledStates[i].ledNumber = 256 - (((2* rowNumber) + 1) * SERPENTINE_ROW) + i;
+            } else { // odd rows are reverse order
+                //16 should be 239 and 31 should be 224
+                ledStates[ i].ledNumber = 255 - i;
+            }
+        }
+/* first order
+        {
+            int rowNumber = i/SERPENTINE_ROW;
             if ( rowNumber%2 == 0) { // even rows are normal
                 ledStates[i].ledNumber = i;
                 ledMagic = SERPENTINE_ROW *(rowNumber+2); //0 ==>32
@@ -1672,8 +2004,8 @@ void setupAllLedFSMs ()
                 ledMagic = ledMagic - 1;
                 ledStates[i].ledNumber = ledMagic;
             }
-       }
-
+        }
+**/
     }
 }
 
@@ -2405,7 +2737,7 @@ int groupNullSPF ( LedGroupState *group, groupEvent event, TIME currentTime)
 
 void groupAllStatesSPF( LedGroupState *group, groupEvent event, TIME currentTime)
 {
-    Serial.printlnf( "%ld gASSPF group:%d event:%d", currentTime, group->groupNumber, event);
+    //Serial.printlnf( "%ld gASSPF group:%d event:%d", currentTime, group->groupNumber, event);
     switch (event)
     {
         case GROUP_ON:
@@ -2647,8 +2979,8 @@ void groupAllStatesSPF( LedGroupState *group, groupEvent event, TIME currentTime
             showLeds( true);
             group->timeToWait = getNextGroupItem( group);
             group->startTime = currentTime;
-            Serial.printlnf("GROUP WAIT id:%d time:%d wait:%d start:%d",
-                    group->groupNumber, millis(), group->timeToWait, group->startTime);
+            //Serial.printlnf("GROUP WAIT id:%d time:%d wait:%d start:%d",
+            //        group->groupNumber, millis(), group->timeToWait, group->startTime);
             group->currentState = groupWaitSPF;
             break;
 
@@ -2802,6 +3134,18 @@ void groupAllStatesSPF( LedGroupState *group, groupEvent event, TIME currentTime
             break;
         }
 
+        case GROUP_MASK: // pointer to 8 32-bit numbers
+        {
+            // set the mask of the selected group from a bit mask array
+            uint32_t *mask = (uint32_t*)getNextGroupItem( group);
+            for (int i = 0; i < 8; i++) // every row
+            {
+                group->groupMask[i] = *mask;
+                mask++;
+            }
+            break;
+        }
+
         case GROUP_SET_MASK: // pointer to 8 32-bit numbers
         {
             // set the members of the selected group from a bit mask array
@@ -2809,29 +3153,29 @@ void groupAllStatesSPF( LedGroupState *group, groupEvent event, TIME currentTime
             uint32_t *mask = (uint32_t*)getNextGroupItem( group);
             String members = "";
             char membersCA [100 + 1];
-            Serial.printlnf("%d GSM mask:%d", millis(), mask);
+            //Serial.printlnf("%d GSM mask:%d", millis(), mask);
             for (int i = 0; i < 8; i++) // every row
             {
                 // convert bit position to LED number
-                Serial.printlnf("%d GSM row:%d mask:%ld", millis(), i, *mask);
+                //Serial.printlnf("%d GSM row:%d mask:%ld", millis(), i, *mask);
                 members = "GSM members:";
                 for (int j = 0; j<32; j++) { // every bit in row
                     if (*mask & 1<<j) {
                         group->members[member] = i*32 + j;
                         members = members + String (" ") + String (i*32 + j);
-                        Serial.printlnf("GSM: mask:%d member:%d", *mask, i*32 +j);
+                        //Serial.printlnf("GSM: mask:%d member:%d", *mask, i*32 +j);
                         member = member + 1;
                     }
                 }
                 members.toCharArray(membersCA, 100);
-                Serial.println( membersCA);
+                //Serial.println( membersCA);
                 mask++;
             }
             group->numLeds = member;
-            for (int i = 0; i < group->numLeds; i++) // every member
-            {
-                Serial.printlnf("GSM: member:%d %d", i, group->members[i] );
-            }
+            //for (int i = 0; i < group->numLeds; i++) // every member
+            //{
+            //    Serial.printlnf("GSM: member:%d %d", i, group->members[i] );
+            //}
             break;
         }
 
@@ -3181,6 +3525,62 @@ when you hit it, you either stop, LED_STOP, GROUP_STOP, or loop, LED_LOOP, GROUP
             }
             break;
 
+        case life01:
+            interpretGroupCommand ( &ledGroupStates[ 0], life01GC, now);
+            break;
+
+        case life02:
+            interpretGroupCommand ( &ledGroupStates[ 0], life02GC, now);
+            break;
+
+        case life03:
+            interpretGroupCommand ( &ledGroupStates[ 0], life03GC, now);
+            break;
+
+        case life04:
+            interpretGroupCommand ( &ledGroupStates[ 0], life04GC, now);
+            break;
+
+        case life05:
+            interpretGroupCommand ( &ledGroupStates[ 0], life05GC, now);
+            break;
+
+        case life06:
+            interpretGroupCommand ( &ledGroupStates[ 0], life06GC, now);
+            break;
+
+        case life07:
+            interpretGroupCommand ( &ledGroupStates[ 0], life07GC, now);
+            break;
+
+        case life08:
+            interpretGroupCommand ( &ledGroupStates[ 0], life08GC, now);
+            break;
+
+        case life09:
+            interpretGroupCommand ( &ledGroupStates[ 0], life09GC, now);
+            break;
+
+        case life10:
+            interpretGroupCommand ( &ledGroupStates[ 0], life10GC, now);
+            break;
+
+        case life11:
+            interpretGroupCommand ( &ledGroupStates[ 0], life11GC, now);
+            break;
+
+        case life12:
+            interpretGroupCommand ( &ledGroupStates[ 0], life12GC, now);
+            break;
+
+        case life13:
+            interpretGroupCommand ( &ledGroupStates[ 0], life13GC, now);
+            break;
+
+        case life15:
+            interpretGroupCommand ( &ledGroupStates[ 0], life15GC, now);
+            break;
+
         default:
             ledMode = offMode; // not quite right, should save entry value
             Serial.println("bad attempt to change LED mode");
@@ -3470,6 +3870,13 @@ int interpretLedCommandString( String commandString)
 }
 
 
+void sendHeartbeat() {
+    String topic;
+
+    Serial.println ( "Heart beat");
+    publish ( String( NODE_NAME) + String( "/heartbeat"),  String( ""));
+}
+
 void ledSetup ()
 // setup of the LED module
 {
@@ -3497,21 +3904,51 @@ void ledSetup ()
 
 
 TIME lastPublish;
+SYSTEM_MODE(MANUAL);
 
 void setup()
 {
+    pinMode (BUTTON_MANUAL, INPUT_PULLUP);
+    pinMode (WIFI_MANUAL, INPUT_PULLUP);
+
     Serial.begin(9600);
     Serial.println("Serial monitor started");
 
-    ledBrightness = 1; //percent
+    ledBrightness = 20; //percent
     FastLED.setBrightness( (int) (ledBrightness*255/100));
 
     ledSetup();
     lastPublish = millis();
+    if (digitalRead (WIFI_MANUAL) == LOW) {
+        if (!WiFi.ready()) {
+            WiFi.on();
+            WiFi.setListenTimeout(5);
+            //WiFi.useDynamicIP();
+            WiFi.connect();
+            sendHeartbeat();
+        }
+    }
 }
+
 
 void loop()
 {
+    if (digitalRead (WIFI_MANUAL) == LOW) {
+        if (!WiFi.ready()) {
+            WiFi.on();
+            //WiFi.useDynamicIP();
+            WiFi.connect();
+            sendHeartbeat();
+        }
+        if (digitalRead (BUTTON_MANUAL) == LOW) {
+            Particle.connect();
+        }
+        if (Particle.connected()) {
+            Particle.process();
+        }
+    }
+
+
     //groupFSM(); // handle group LED effects
     //ledFSM(); // handle individual LED effects
 
@@ -3566,30 +4003,32 @@ void loop()
     showLeds( changed);
 
 
-    if (client.isConnected()) {
-        client.loop();
-        if (now - lastPublish > 30 * 1000) { // only want to do this every thirty seconds
-            // or when something changes
-            publish ( String( HOSTNAME) + String( "/mode"),  String( ledMode, DEC));
-            publish ( String( HOSTNAME) + String( "/brightness"),  String( ledBrightness, DEC));
-            publish ( String( HOSTNAME) + String( "/direction"),  String( ledDirection, DEC));
-            publish ( String( HOSTNAME) + String( "/color/r"),  String( ledColor.r, DEC));
-            publish ( String( HOSTNAME) + String( "/color/g"),  String( ledColor.g, DEC));
-            publish ( String( HOSTNAME) + String( "/color/b"),  String( ledColor.b, DEC));
-            lastPublish = now;
+    if (digitalRead (WIFI_MANUAL) == LOW) {
+        if (mqttClient.isConnected()) {
+            mqttClient.loop();
+            if (now - lastPublish > 30 * 1000) { // only want to do this every thirty seconds
+                // or when something changes
+                publish ( String( NODE_NAME) + String( "/mode"),  String( ledMode, DEC));
+                publish ( String( NODE_NAME) + String( "/brightness"),  String( ledBrightness, DEC));
+                publish ( String( NODE_NAME) + String( "/direction"),  String( ledDirection, DEC));
+                publish ( String( NODE_NAME) + String( "/color/r"),  String( ledColor.r, DEC));
+                publish ( String( NODE_NAME) + String( "/color/g"),  String( ledColor.g, DEC));
+                publish ( String( NODE_NAME) + String( "/color/b"),  String( ledColor.b, DEC));
+                lastPublish = now;
+            }
+        } else {
+            // connect to the server
+            Serial.println("Attempting to connect to MQTT broker again");
+            mqttClient.connect(NODE_NAME);
+            delay(1000);
+
+            // subscribe to all commands at once with wild card
+            String topic = String( NODE_NAME) + String( "/command/#");
+            #define TOPIC_LEN 30
+            char subscribeTopic[TOPIC_LEN];
+
+            topic.toCharArray(subscribeTopic, TOPIC_LEN);
+            mqttClient.subscribe( subscribeTopic);
         }
-    } else {
-        // connect to the server
-        Serial.println("Attempting to connect to MQTT broker again");
-        client.connect(HOSTNAME);
-        delay(1000);
-
-        // subscribe to all commands at once with wild card
-        String topic = String( HOSTNAME) + String( "/command/#");
-#define TOPIC_LEN 30
-        char subscribeTopic[TOPIC_LEN];
-
-        topic.toCharArray(subscribeTopic, TOPIC_LEN);
-        client.subscribe( subscribeTopic);
     }
 }
