@@ -173,6 +173,7 @@ nice to have indirect way of loading groups as they are sometimes common
 
 
 
+
 // **** INCLUDES ****
 
 //Load Fast LED Library and set it's options.
@@ -293,6 +294,12 @@ ledModes ledMode = offMode; // LED display mode, see above
 LedState ledStates [ NUM_LEDS];
 LedGroupState ledGroupStates [NUM_GROUPS];
 
+// stuff form trellis...
+#define X_DIM 16
+#define Y_DIM 16
+uint16_t matrixI [ Y_DIM];
+bool matrixB [ X_DIM * Y_DIM];
+
 
 //**** FUNCTION PROTOTYPES FOR FORWARD REFERENCES ****
 
@@ -354,6 +361,16 @@ void receiveMqttMessage(char* topic, byte* payload, unsigned int length) {
         } else {
             Serial.println( "Brightness payload was bad: " + payloadS);
         }
+    } else if (topicS.compareTo( String( NODE_NAME) + String ("/command/setBrightness")) == 0) {
+        // payload expected to be 0..255
+        passedBrightness = payloadS.toInt();
+        if (passedBrightness > 0 && passedBrightness <= 255) {
+            FastLED.setBrightness( (int) (passedBrightness));
+            Serial.println( "Brightness set to: " + String( passedBrightness, DEC));
+            showLeds ( true);
+        } else {
+            Serial.println( "Brightness payload was bad: " + payloadS);
+        }
     } else if (topicS.compareTo( String( NODE_NAME) + String ("/command/direction")) == 0) {
         // payload expected to be 0..359 (degrees)
         passedDirection = payloadS.toInt();
@@ -375,6 +392,33 @@ void receiveMqttMessage(char* topic, byte* payload, unsigned int length) {
         } else {
             Serial.println( "Color payload was bad: " + payloadS);
         }
+    } else if (topicS.compareTo( String( NODE_NAME) + String ("/command/setColor")) == 0) {
+        // payload expected to be some sort of HTML color in the form:
+        // index into a box of crayons
+        // 0xFFFFFF, 0xFFF, names, hue angles, lists, etc., can come later
+        // want a multi color, but that may be the same thing as a list
+        passedColor = payloadS.toInt();
+        if (passedColor > 0 && passedColor <= 0xFFFFFF) {
+            ledColor = (CRGB) passedColor;
+            Serial.println( "Set color to #" + String( passedColor, HEX));
+            // just to make this consistent with the trellis:
+            for (int i=0; i < X_DIM * Y_DIM; i++) {
+                if (ledStates[i].currentColor != (CRGB) 0) {
+                    ledStates[i].currentColor = ledColor;
+                }
+            }
+            showLeds ( true);
+        } else {
+            Serial.println( "Color payload was bad: " + payloadS);
+        }
+    } else if (topicS.compareTo( String( NODE_NAME) + String("/command/setMatrix")) == 0) {
+        Serial.println( "extracting matrix: " +  payloadS);
+        jsonToIntArray( payloadS, matrixI);
+        Serial.println( "extracted matrix: " + arrToString( matrixI));
+        arrIntToArrBool( matrixI, matrixB);
+        loadMatrix();
+        //Serial.println( "extracted matrix: " + arrToString( matrixB));
+        Serial.println( "matrix loaded");
     }
 }
 
@@ -401,7 +445,7 @@ void setupAllLedFSMs ()
             ledStates[i].ledNumber = i;
         }
     } else if ( SERPENTINE_16_ARRAY) {
-        int ledMagic = 0;
+        //int ledMagic = 0;
         for (int i = 0; i < NUM_LEDS; i++)
         {
             int rowNumber = i/SERPENTINE_ROW;
@@ -443,6 +487,111 @@ void setupAllLedFSMs ()
 }
 
 
+bool jsonToIntArray( String json, uint16_t arr[] ) { // a limiting length would be good
+/*
+  the array is assumed to be 16 16-bit unsigned integers
+  this is not quite right... it is true for the key and led binary arrays
+  but false for led color arrays ... a 1x256 array of 24-bit color values.
+  the context will know how many members are expected and the maximum value allowed.
+*/
+    int pos = 0;
+    int arrPos = 0;
+    int arrPosLimit = 16;
+    uint32_t number = 0;
+    uint32_t numberLimit = 0xFFFF;
+    char jchar = json.charAt(pos);
+    while ( jchar == ' ') { // skip whitespace
+        pos++;
+        jchar = json.charAt(pos);
+    }
+    //Log.trace( "jsonToInt char: " + String( jchar));
+    if ( jchar == '[') { // good start
+        do { // while not end of list of numbers
+            pos++;
+            jchar = json.charAt(pos);
+            //Log.trace( "jsonToInt char: " + String( jchar));
+            while ( jchar == ' ') { // skip whitespace
+                pos++;
+                jchar = json.charAt(pos);
+            };
+            if ( jchar >= '0' && jchar <= '9') { // start of number
+                //Log.trace( "jsonToInt char: " + String( jchar));
+                number = jchar - '0';
+                //Log.trace( "jsonToInt number: " + String( number));
+                pos++;
+                jchar = json.charAt(pos);
+                while ( jchar >= '0' && jchar <= '9') { // still in number
+                    //Log.trace( "jsonToInt char: " + String( jchar));
+                    number = 10 * number + jchar - '0';
+                    //Log.trace( "jsonToInt number: " + String( number));
+                    pos++;
+                    jchar = json.charAt(pos);
+                    if (number >  numberLimit) {
+                        return false; // number too big
+                    }
+                };
+                // end of number, character is not a digit
+                //Log.trace( "jsonToInt EoN char: " + String( jchar));
+                arr[arrPos] = number;
+                arrPos++;
+                if (arrPos >= arrPosLimit) {
+                    return true; // too many numbers in array
+                }
+                while ( jchar == ' ') { // skip whitespace
+                    pos++;
+                    jchar = json.charAt(pos);
+                }
+                if ( jchar == ']') {
+                    return true; // properly formatted integer array
+                }; // other chars fall through including ','
+            } else {
+                return false; // poorly formatted
+            };
+        } while ( jchar == ',');
+        if ( jchar == ']' ) {
+            return true;
+        } else {
+            return false; // poorly formatted
+        };
+    } else {
+        return false; // poorly formatted
+    }
+}
+
+
+String  arrToString ( uint16_t arr[] ) { // a limiting length would be good
+    int arrPos = 0;
+    int arrPosLimit = 16;
+    String arrString = "";
+    String prefix = "";
+
+    for (int i = 0; i < arrPosLimit; i++) {
+        //Log.trace( "arrToString number: " + String( arr[arrPos]));
+        arrString = arrString + prefix + String( arr[ arrPos], HEX);
+        prefix = ", ";
+        arrPos++;
+    }
+    return ( arrString);
+}
+
+
+void arrIntToArrBool ( uint16_t arrI[], bool arrB[]) {
+    // these are numbered to reflect the array, so 0 is highest bit of first member
+    // and 255 is lowest bit of last member
+    int ledNumber = 0;
+    for (int i = 0; i < Y_DIM; i++) {
+        for (int j = 0; j < X_DIM; j++) {
+            if (arrI[i] & 1 << (X_DIM-j-1)) { // 15, 14, 13..1, 0
+               arrB[ ledNumber] = true;
+            } else {
+               arrB[ ledNumber] = false;
+            }
+            ledNumber++;
+        }
+    }
+}
+
+
 void showLeds ( bool changed)
 {
     if( changed) {
@@ -453,6 +602,49 @@ void showLeds ( bool changed)
         FastLED.show();
     }
 }
+
+
+void loadMatrix ( ) {
+    CRGB temp = ledColor;
+    if (ledBrightness) {
+        temp.r = (temp.r * ledBrightness) >> 8;
+        temp.g = (temp.g * ledBrightness) >> 8;
+        temp.b = (temp.b * ledBrightness) >> 8;
+    }
+/*
+    uint32_t temp = ledColor;
+    if (ledBrightness) {
+         temp = ( ((((((temp >> 16) & 0xFF) * ledBrightness) >> 8) & 0xFF) << 16) |
+                  ((((((temp >>  8) & 0xFF) * ledBrightness) >> 8) & 0xFF) <<  8) |
+                   (((((temp      ) & 0xFF) * ledBrightness) >> 8) & 0xFF) );
+    }
+*/
+
+/* this is a mirror image of trellis...
+    for (int i=0; i < X_DIM * Y_DIM; i++) {
+        if (matrixB[i]) {
+            ledStates[i].currentColor = ledColor;
+        } else {
+            ledStates[i].currentColor = 0;
+        }
+        //Log.trace( " " + String (i) + " " + String( matrixB[i] ? 1 : 0));
+        //delay(20);
+    }
+        //delay(20);
+    //Log.trace( "showing loadMatrix");
+*/
+    for (int i=0; i < Y_DIM; i++) {
+        for (int j=0; j < X_DIM; j++) {
+            if (matrixB[i * X_DIM + j]) {
+                ledStates[i * X_DIM + X_DIM -1 - j].currentColor = ledColor;
+            } else {
+                ledStates[i * X_DIM + X_DIM -1 - j].currentColor = 0;
+            }
+        }
+    }
+    showLeds ( true);
+}
+
 
 void stopAllLedFSMs ()
 {
