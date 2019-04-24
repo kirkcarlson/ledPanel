@@ -364,7 +364,11 @@ void receiveMqttMessage(char* topic, byte* payload, unsigned int length) {
     } else if (topicS.compareTo( String( NODE_NAME) + String ("/command/setBrightness")) == 0) {
         // payload expected to be 0..255
         passedBrightness = payloadS.toInt();
-        if (passedBrightness > 0 && passedBrightness <= 255) {
+        if (passedBrightness >= 0 && passedBrightness <= 255) {
+            // for compatibility with trellis
+            if (passedBrightness == 0) {
+                passedBrightness = 255;
+            }
             FastLED.setBrightness( (int) (passedBrightness));
             Serial.println( "Brightness set to: " + String( passedBrightness, DEC));
             showLeds ( true);
